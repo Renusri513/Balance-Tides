@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Balance Tides</title>
+  <style>
+    body {
+      margin: 0;
+      background: black;
+      color: white;
+      font-family: sans-serif;
+      text-align: center;
+    }
+    #gameCanvas {
+      background: linear-gradient(to top, #003366, #000000);
+      display: block;
+      margin: auto;
+      border: 3px solid white;
+    }
+    #score {
+      font-size: 20px;
+      margin-top: 10px;
+    }
+    #balanceMeter {
+      width: 100%;
+      height: 20px;
+      background: #333;
+      margin-top: 5px;
+    }
+    #balanceBar {
+      height: 100%;
+      width: 0%;
+      background: lime;
+      transition: width 0.2s, background 0.3s;
+    }
+    #message {
+      margin-top: 10px;
+      height: 30px;
+      font-weight: bold;
+      font-size: 18px;
+    }
+    #startBtn, #restartBtn {
+      margin: 10px;
+      padding: 10px 20px;
+      font-size: 18px;
+      cursor: pointer;
+    }
+    #gameOverScreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      font-size: 24px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <div id="score">Score: 0 | Level 1 ⏱️ 30 | Required: 30</div>
+  <div id="balanceMeter"><div id="balanceBar"></div></div>
+  <div id="message"></div>
+  <button id="startBtn">Start Game</button>
+  <button id="restartBtn" style="display:none">Restart</button>
+
+  <div id="gameOverScreen">
+    <div id="finalStats"></div>
+    <button onclick="restartGame()">Try Again</button>
+  </div>
+
+  <!-- Sounds -->
+  <audio id="bgMusic" src="sounds/bg-music.mp3" loop></audio>
+  <audio id="levelUpSound" src="sounds/levelUp.mp3"></audio>
+  <audio id="hitSound" src="sounds/hit.mp3"></audio>
+  <audio id="powerupSound" src="sounds/powerup.mp3"></audio>
+
+  <!-- Game JS -->
+  <!-- INSERT FULL SCRIPT FROM PREVIOUS REPLY HERE -->
+  <!-- ☝ Paste the entire JavaScript script block from the previous message right here ☝ -->
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+const bgMusic = document.getElementById("bgMusic");
+const levelUpSound = document.getElementById("levelUpSound");
+const hitSound = document.getElementById("hitSound");
+const powerupSound = document.getElementById("powerupSound");
+
+bgMusic.loop = true;
+
+let moon = { x: 400, y: 100, r: 30, vx: 0, vy: 0 };
+let keys = {}, score = 0, level = 1, timeLeft = 30;
+let gameRunning = false, waveOffset = 0;
+let enemies = [], powerUps = [];
+let invincible = false;
+const resistance = 0.96;
+let windPower = 0.3;
+const maxSpeed = 4;
+
+const balanceBar = document.getElementById("balanceBar");
+const scoreDisplay = document.getElementById("score");
+const messageBox = document.getElementById("message");
+const startBtn = document.getElementById("startBtn");
+const restartBtn = document.getElementById("restartBtn");
+const gameOverScreen = document.getElementById("gameOverScreen");
+const finalStats = document.getElementById("finalStats");
+
+let stars = Array.from({length: 60}, () => ({
+  x: Math.random() * canvas.width,
+  y: Math.random() * canvas.height,
+  radius: Math.random() * 1.5 + 0.5,
+  alpha: Math.random(),
+  delta: Math.random() * 0.02
+}));
+
+function drawStar(x, y, r, spikes, inner, color, glowColor) {
+  let rot = Math.PI / 2 * 3;
+  let step = Math.PI / spikes;
+  ctx.beginPath();
+  ctx.moveTo(x, y - r);
+  for (let i = 0; i < spikes; i++) {
+    ctx.lineTo(x + Math.cos(rot) * r, y + Math.sin(rot) * r);
+    rot += step;
+    ctx.lineTo(x + Math.cos(rot) * inner, y + Math.sin(rot) * inner);
+    rot += step;
+  }
+  ctx.lineTo(x, y - r);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.shadowColor = glowColor;
+  ctx.shadowBlur = 10;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+}
+
+function drawStars() {
+  stars.forEach(s => {
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${s.alpha})`;
+    ctx.fill();
+    s.alpha += s.delta;
+    if (s.alpha <= 0 || s.alpha >= 1) s.delta *= -1;
+  });
+}
+
+function drawWaves(amplitude) {
+  const layers = 3;
+  for (let i = 0; i < layers; i++) {
+    ctx.beginPath();
+    ctx.moveTo(0, canvas.height / 2);
+    for (let x = 0; x <= canvas.width; x++) {
+      const y = canvas.height / 2 + Math.sin(x * 0.05 + waveOffset * (0.5 + i * 0.2)) * amplitude * (0.4 + i * 0.3);
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(canvas.width, canvas.height);
+    ctx.lineTo(0, canvas.height);
+    ctx.closePath();
+    ctx.fillStyle = `rgba(0, 119, 190, ${0.2 + i * 0.2})`;
+    ctx.fill();
+  }
+}
+
+function drawMoon() {
+  const glow = 10 + Math.sin(Date.now() / 200) * 5;
+  ctx.beginPath();
+  ctx.arc(moon.x, moon.y, moon.r, 0, Math.PI * 2);
+  ctx.fillStyle = invincible ? "#00ffcc" : "#fffacd";
+  ctx.shadowColor = invincible ? "#00ffff" : "#ffffcc";
+  ctx.shadowBlur = glow;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+}
+
+function drawEnemies() {
+  enemies.forEach(e => {
+    drawStar(e.x, e.y, 15, 5, 7, "red", "orange");
+  });
+}
+
+function drawPowerUps() {
+  powerUps.forEach(p => {
+    if (p.type === "score") {
+      drawStar(p.x, p.y, 12, 6, 6, "lime", "lime");
+    } else {
+      drawStar(p.x, p.y, 12, 6, 6, "cyan", "cyan");
+    }
+  });
+}
+
+function updateBalanceMeter() {
+  const center = canvas.height / 2;
+  const dist = Math.abs(moon.y - center);
+  const percentage = Math.max(0, 100 - dist / 2);
+  balanceBar.style.width = percentage + "%";
+  balanceBar.style.background = percentage > 85 ? "lime" : percentage > 60 ? "orange" : "red";
+  return percentage;
+}
+
+function drawScene() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawStars();
+  drawWaves(40);
+  drawEnemies();
+  drawPowerUps();
+  drawMoon();
+}
+
+function applyPhysics() {
+  if (!gameRunning) return;
+  moon.vx += (Math.random() - 0.5) * windPower;
+  moon.vy += (Math.random() - 0.5) * windPower;
+
+  if (keys.ArrowUp) moon.vy -= 0.3;
+  if (keys.ArrowDown) moon.vy += 0.3;
+  if (keys.ArrowLeft) moon.vx -= 0.3;
+  if (keys.ArrowRight) moon.vx += 0.3;
+
+  moon.vx *= resistance;
+  moon.vy *= resistance;
+
+  moon.vx = Math.max(-maxSpeed, Math.min(maxSpeed, moon.vx));
+  moon.vy = Math.max(-maxSpeed, Math.min(maxSpeed, moon.vy));
+
+  moon.x += moon.vx;
+  moon.y += moon.vy;
+
+  moon.x = Math.max(moon.r, Math.min(canvas.width - moon.r, moon.x));
+  moon.y = Math.max(moon.r, Math.min(canvas.height - moon.r, moon.y));
+}
+
+function spawnEnemy() {
+  enemies.push({ x: Math.random() * canvas.width, y: -20, r: 15, vy: 1.5 + level * 0.3 });
+}
+
+function spawnPowerUp() {
+  const type = Math.random() > 0.5 ? "score" : "shield";
+  powerUps.push({ x: Math.random() * canvas.width, y: -20, r: 10, vy: 1.2, type });
+}
+
+function checkCollisions() {
+  enemies = enemies.filter(e => {
+    const dx = moon.x - e.x, dy = moon.y - e.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < moon.r + e.r) {
+      if (!invincible) {
+        showMessage("💥 Hit!", "red");
+        hitSound.play();
+        gameOver();
+      }
+      return false;
+    }
+    return true;
+  });
+
+  powerUps = powerUps.filter(p => {
+    const dx = moon.x - p.x, dy = moon.y - p.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < moon.r + p.r) {
+      if (p.type === "score") {
+        score += 20;
+        flashScore();
+        powerupSound.play();
+        showMessage("🌟 +20 Score!");
+      } else {
+        invincible = true;
+        powerupSound.play();
+        showMessage("🛡️ Shield!");
+        setTimeout(() => {
+          invincible = false;
+          showMessage("Shield Over!", "orange");
+        }, 5000);
+      }
+      return false;
+    }
+    return true;
+  });
+}
+
+function showMessage(text, color = "#fff") {
+  messageBox.textContent = text;
+  messageBox.style.color = color;
+  messageBox.style.opacity = 1;
+  setTimeout(() => messageBox.style.opacity = 0, 1000);
+}
+
+function flashScore() {
+  scoreDisplay.style.transform = "scale(1.2)";
+  scoreDisplay.style.color = "#00ffcc";
+  setTimeout(() => {
+    scoreDisplay.style.transform = "scale(1)";
+    scoreDisplay.style.color = "#fff";
+  }, 300);
+}
+
+function gameOver() {
+  gameRunning = false;
+  bgMusic.pause();
+  gameOverScreen.style.display = "flex";
+  const currentScore = Math.floor(score);
+  const highScore = Math.max(currentScore, localStorage.getItem("highScore") || 0);
+  localStorage.setItem("highScore", highScore);
+  finalStats.innerHTML = `🌟 Final Score: <strong>${currentScore}</strong><br/>🏆 High Score: <strong>${highScore}</strong>`;
+}
+
+function restartGame() {
+  moon = { x: 400, y: 100, r: 30, vx: 0, vy: 0 };
+  score = 0;
+  level = 1;
+  timeLeft = 30;
+  enemies = [];
+  powerUps = [];
+  invincible = false;
+  gameOverScreen.style.display = "none";
+  bgMusic.play();
+  gameRunning = true;
+  gameLoop();
+}
+
+function gameLoop() {
+  if (!gameRunning) return;
+  applyPhysics();
+  drawScene();
+  checkCollisions();
+
+  const balanceScore = updateBalanceMeter();
+  if (balanceScore > 90) {
+    score += 0.5;
+    if (Math.random() < 0.01) showMessage("✨ Great Balance!");
+  }
+
+  scoreDisplay.textContent = `Score: ${Math.floor(score)} | Level ${level} ⏱️ ${timeLeft}`;
+  waveOffset += 0.06;
+
+  enemies.forEach(e => e.y += e.vy);
+  powerUps.forEach(p => p.y += p.vy);
+
+  if (Math.random() < 0.02) spawnEnemy();
+  if (Math.random() < 0.015) spawnPowerUp();
+
+  requestAnimationFrame(gameLoop);
+}
+
+window.addEventListener("keydown", e => keys[e.key] = true);
+window.addEventListener("keyup", e => keys[e.key] = false);
+
+startBtn.addEventListener("click", () => {
+  gameRunning = true;
+  bgMusic.play();
+  startBtn.style.display = "none";
+  restartBtn.style.display = "inline-block";
+
+  setInterval(() => {
+    if (!gameRunning) return;
+    timeLeft--;
+    if (timeLeft <= 0) {
+      const requiredScore = level * 30;
+      if (score < requiredScore) {
+        showMessage("❌ Not Enough Score!", "red");
+        gameOver();
+        return;
+      }
+      level++;
+      timeLeft = 30;
+      windPower += 0.1;
+      levelUpSound.play();
+      flashScore();
+      showMessage(`⏫ Level ${level}`, "#00ff00");
+    }
+  }, 1000);
+
+  gameLoop();
+});
+
+restartBtn.addEventListener("click", restartGame);
+drawScene();
+</script>
+
+
+
+
+</body>
+</html>

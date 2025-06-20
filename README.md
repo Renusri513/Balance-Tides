@@ -6,7 +6,7 @@
 
 ## 🎮 Game Concept
 
-In **Balance Tides**, the moon's movement influences tidal levels. The goal is to keep the ocean's balance while avoiding enemies (falling stars) and collecting power-ups (shields, star boosts) in a side-scrolling environment.
+In **Balance Tides**, the moon's movement influences tidal levels. The goal is to keep the ocean's balance while avoiding enemies (falling stars) and collecting power-ups (shields, star boosts) in a side-scrolling environment.  
 
 ---
 

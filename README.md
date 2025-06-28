@@ -1,6 +1,6 @@
 # 🌊 Balance Tides - HTML5 Game
 
-**Balance Tides** is a creative and minimalistic HTML5 game that explores the concept of balance through tidal physics. The player navigates a moon-like object to control tides and manage wave dynamics, avoiding obstacles and collecting power-ups across multiple levels.
+**Balance Tides** is a creative and minimalistic HTML5 game that explores the concept of balance through tidal physics. The player navigates a moon-like object to control tides and manage wave dynamics, avoiding obstacles and collecting power-ups across multiple levels 
 
 ---
 
